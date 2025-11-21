@@ -17,6 +17,70 @@
         }
     });
 
+    // Handle browser back/forward buttons
+    window.addEventListener('popstate', function(event) {
+        // Reload filter data from URL
+        data = URLToArrayNew();
+        
+        // Update UI to reflect URL parameters
+        syncUIWithURL();
+        
+        // Perform AJAX filter with new parameters
+        ajaxFilterHandler();
+    });
+
+    function syncUIWithURL() {
+        // Sync checkboxes and other UI elements with URL parameters
+        
+        // Reset all filter items first
+        $('.filter-item').prop('checked', false);
+        $('.filter-tax').prop('checked', false);
+        
+        // Check filter items based on data
+        for (var key in data) {
+            if (data.hasOwnProperty(key)) {
+                var values = data[key].toString().split(',');
+                
+                // Handle filter items
+                $('.filter-item[data-type="' + key + '"]').each(function() {
+                    if (values.indexOf($(this).val()) !== -1) {
+                        $(this).prop('checked', true);
+                    }
+                });
+                
+                // Handle taxonomy filters
+                if (key.indexOf('taxonomy[') === 0) {
+                    var taxType = key.replace('taxonomy[', '').replace(']', '');
+                    $('.filter-tax[data-type="' + taxType + '"]').each(function() {
+                        if (values.indexOf($(this).val()) !== -1) {
+                            $(this).prop('checked', true);
+                        }
+                    });
+                }
+                
+                // Handle price range
+                if (key === 'price_range') {
+                    $('input[name="price_range"]').each(function() {
+                        var instance = $(this).data("ionRangeSlider");
+                        var price_range_arr = data['price_range'].split(';');
+                        if (price_range_arr.length && instance) {
+                            instance.update({
+                                from: price_range_arr[0],
+                                to: price_range_arr[1]
+                            });
+                        }
+                    });
+                }
+                
+                // Handle layout
+                if (key === 'layout') {
+                    $('.toolbar .layout span').removeClass('active');
+                    $('.toolbar .layout span[data-value="' + data[key] + '"]').addClass('active');
+                }
+            }
+        }
+    }
+
     var resizeId;
     // $(window).on('resize',function() {
     //     if($('.search-result-page.st-style-elementor').length) {
@@ -519,12 +583,40 @@
         $('.st-hotel-result').find('.col-left').getNiceScroll().remove();
     });
 
+    function updateURL(filterData) {
+        var params = new URLSearchParams();
+        
+        // Add all filter parameters to URL
+        for (var key in filterData) {
+            if (filterData.hasOwnProperty(key) && filterData[key] !== '' && filterData[key] !== null && filterData[key] !== undefined) {
+                // Skip internal parameters that shouldn't be in URL
+                if (key === 'action' || key === '_s' || key === 'is_search_page' || key === 'is_popup_map' || key === 'format' || key === 'fullwidth') {
+                    continue;
+                }
+                params.set(key, filterData[key]);
+            }
+        }
+        
+        // Build new URL
+        var newURL = window.location.pathname;
+        var queryString = params.toString();
+        if (queryString) {
+            newURL += '?' + queryString;
+        }
+        
+        // Update browser URL without reloading the page
+        window.history.pushState({path: newURL}, '', newURL);
+    }
+
     function ajaxFilterHandler(loadMap = true) {
         if (requestRunning) {
             xhr.abort();
         }
 
         hasFilter = true;
+
+        // Update URL with current filter parameters
+        updateURL(data);
 
         $('html, body').css({
             'overflow': 'auto'
